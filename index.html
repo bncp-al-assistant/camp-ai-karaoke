@@ -188,6 +188,7 @@ form.add label{font-size:12px;color:var(--ink-dim)}
         </div>
       </div>
       <div class="url" id="remoteUrl"></div>
+      <div class="url">버전 <span id="verTv"></span></div>
     </div>
     <div class="card">
       <h2>예약 목록 <small id="queueCount">0곡</small></h2>
@@ -206,6 +207,7 @@ form.add label{font-size:12px;color:var(--ink-dim)}
     <h1 class="brand"><b>우리집</b> <span>노래방</span></h1>
     <span class="pill" id="rmStatus">연결 중</span>
   </header>
+  <div class="hint" style="text-align:right;margin-top:-6px">버전 <span id="verRm"></span></div>
 
   <div class="join" id="joinBox" hidden>
     <div class="card">
@@ -2617,7 +2619,14 @@ var qrcode = function() {
   var $ = function(id){ return document.getElementById(id); };
   var PREFIX = "uri-noraebang-";
   // 핸드폰과 노트북은 무료 공용 중계 서버 두 곳에 동시에 연결해 메시지를 주고받아요. 한 곳이 안 되면 다른 곳으로 전달돼요.
-  var RELAY_URLS = window.__RELAY_URLS || ["wss://broker.hivemq.com:8884/mqtt", "wss://broker.emqx.io:8084/mqtt"];
+  // 일부 와이파이는 443 이외의 포트를 막아서, 443 포트를 쓰는 서버도 함께 씁니다.
+  var APP_VER = "v4";
+  var RELAY_URLS = window.__RELAY_URLS || [
+    { url: "wss://mqtt.eclipseprojects.io:443/mqtt" },
+    { url: "wss://public.cloud.shiftr.io:443", username: "public", password: "public" },
+    { url: "wss://broker.hivemq.com:8884/mqtt" },
+    { url: "wss://broker.emqx.io:8084/mqtt" }
+  ];
   function rid(){ return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
   function Relay(room, subs, onMsg){
     var base = "urinoraebang/v3/" + room + "/";
@@ -2625,8 +2634,9 @@ var qrcode = function() {
     var clients = [];
     if (typeof mqtt === "undefined") return { pub: function(){}, connected: function(){ return 0; }, wake: function(){}, failed: true };
     RELAY_URLS.forEach(function(u){
+      if (typeof u === "string") u = { url: u };
       var c;
-      try { c = mqtt.connect(u, { clientId: "unb_" + rid(), keepalive: 20, reconnectPeriod: 2000, connectTimeout: 8000, clean: true }); }
+      try { c = mqtt.connect(u.url, { clientId: "unb_" + rid(), username: u.username, password: u.password, keepalive: 20, reconnectPeriod: 3000, connectTimeout: 10000, clean: true }); }
       catch (e) { return; }
       c.on("connect", function(){ c.subscribe(subs.map(function(x){ return base + x; }), { qos: 0 }); });
       c.on("message", function(topic, payload){
@@ -2646,6 +2656,7 @@ var qrcode = function() {
         clients.forEach(function(c){ try { c.publish(base + sub, data, opts || { qos: 0 }); } catch (e) {} });
       },
       connected: function(){ return clients.filter(function(c){ return c.connected; }).length; },
+      total: clients.length,
       wake: function(){ clients.forEach(function(c){ if (!c.connected && !c.reconnecting) { try { c.reconnect(); } catch (e) {} } }); }
     };
   }
@@ -2900,8 +2911,9 @@ var qrcode = function() {
       Object.keys(remotes).forEach(function(k){ if (now - remotes[k] < 75000) n++; else delete remotes[k]; });
       $("remoteCount").textContent = n ? "리모컨 " + n + "대 연결됨" : "연결된 리모컨 없음";
       if (!relay || relay.failed) setPill($("tvStatus"), "off", "연결 기능 불러오기 실패");
-      else if (relay.connected()) setPill($("tvStatus"), "on", "연결 대기 중");
-      else setPill($("tvStatus"), "off", "인터넷 연결 확인 중");
+      else if (relay.connected()) setPill($("tvStatus"), "on", "연결 대기 중 · 중계 " + relay.connected() + "/" + relay.total);
+      else setPill($("tvStatus"), "off", "중계 서버 연결 안 됨 (0/" + relay.total + ")");
+      $("verTv").textContent = APP_VER;
     }
     function startRelay(){
       setPill($("tvStatus"), "", "준비 중");
@@ -2989,9 +3001,11 @@ var qrcode = function() {
     }
     function tvAlive(){ return Date.now() - lastTv < 22000; }
     function updStatus(){
-      if (!relay.connected()) setPill($("rmStatus"), "off", "인터넷 연결 확인 중");
-      else if (tvAlive()) setPill($("rmStatus"), "on", "TV 연결됨");
-      else setPill($("rmStatus"), "off", "TV 응답 기다리는 중");
+      var r = " · " + relay.connected() + "/" + relay.total;
+      if (!relay.connected()) setPill($("rmStatus"), "off", "인터넷 연결 확인 중" + r);
+      else if (tvAlive()) setPill($("rmStatus"), "on", "TV 연결됨" + r);
+      else setPill($("rmStatus"), "off", "TV 응답 기다리는 중" + r);
+      $("verRm").textContent = APP_VER + " · 방 " + room;
     }
     function hello(){ if (relay) relay.pub("cmd", { t: "cmd", c: "hello", from: myId }); }
     document.addEventListener("visibilitychange", function(){
