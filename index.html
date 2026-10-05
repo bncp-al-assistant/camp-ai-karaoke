@@ -2613,7 +2613,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v19";
+  var APP_VER = "v20";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2836,7 +2836,7 @@ var qrcode = function() {
     }
     function ytSearch(q, key){
       if (typeof fetch === "undefined") return Promise.reject(new Error("이 브라우저는 검색을 지원하지 않아요"));
-      var url = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=25&regionCode=KR&relevanceLanguage=ko&q=" + encodeURIComponent(q) + "&key=" + encodeURIComponent(key);
+      var url = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=25&regionCode=IQ&relevanceLanguage=ko&q=" + encodeURIComponent(q) + "&key=" + encodeURIComponent(key);
       return fetch(url).then(function(r){
         return r.json().then(function(j){
           if (!r.ok) {
