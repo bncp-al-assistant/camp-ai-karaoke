@@ -2606,7 +2606,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v15";
+  var APP_VER = "v16";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -3064,7 +3064,7 @@ var qrcode = function() {
       else if (m.t === "addOk" || m.t === "addErr") toast(m.text);
       else if (m.t === "results") { clearTimeout(searchT); showResults(m.q, m.items || []); }
       else if (m.t === "searchAck") { searchAcked = true; $("searchHint").textContent = "‘" + m.text + "’ 유튜브에서 찾는 중…"; }
-      else if (m.t === "searchErr") { clearTimeout(searchT); $("searchHint").textContent = m.text; $("results").innerHTML = ""; }
+      else if (m.t === "searchErr") { clearTimeout(searchT); if (voice) endVoice(); $("searchHint").textContent = m.text; $("results").innerHTML = ""; }
     }
 
     function render(){
@@ -3105,7 +3105,7 @@ var qrcode = function() {
           : "TV가 검색 요청을 받지 못했어요. 노트북 화면이 켜져 있는지, 버전이 " + APP_VER + "인지 확인하고 다시 검색해 주세요.";
       }, 12000);
     }
-    function showResults(q, items){
+    var showResults = function(q, items){
       lastResults = items;
       $("searchHint").textContent = items.length ? "‘" + q + "’ 검색 결과예요. 예약을 누르거나, 🎤를 누르고 “3번 예약”처럼 번호를 말하세요." : "‘" + q + "’ TJ노래방 영상을 찾지 못했어요. 가수 이름을 함께 넣거나 다른 말로 찾아보세요.";
       $("results").innerHTML = items.map(function(it, i){
@@ -3113,7 +3113,7 @@ var qrcode = function() {
           '<div><div class="rt">' + esc(it.title) + '</div><div class="rc">' + esc(it.ch) + '</div>' +
           '<div class="ra"><button class="btn primary" type="button" data-i="' + i + '">예약</button><button class="btn" type="button" data-i="' + i + '" data-pr="1">우선예약</button></div></div></li>';
       }).join("");
-    }
+    };
     $("searchForm").addEventListener("submit", function(e){ e.preventDefault(); search(); });
     function reserveAt(i, pr){
       var it = lastResults[i]; if (!it) return false;
@@ -3150,40 +3150,90 @@ var qrcode = function() {
     // 검색창 글자를 모두 지우면 결과도 사라지게
     $("q").addEventListener("input", function(){ if (!this.value.trim()) clearSearch(); });
 
-    /* ----- 말로 검색 ----- */
+    /* ----- 말로 검색 → 이어서 번호 말해서 예약 (마이크는 한 번만 누르면 됨) ----- */
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     var rec = null, listening = false;
-    if (!SR) { $("micBtn").hidden = true; $("searchForm").style.gridTemplateColumns = "minmax(0,1fr) auto"; }
-    else $("micBtn").addEventListener("click", function(){
-      if (listening) { try { rec.stop(); } catch (e) {} return; }
-      rec = new SR(); rec.lang = "ko-KR"; rec.interimResults = true; rec.continuous = false;
-      var finalText = "";
-      rec.onstart = function(){ listening = true; $("micBtn").classList.add("listening"); $("searchHint").textContent = lastResults.length ? "듣는 중… “3번 예약”처럼 번호를 말하거나, 새 노래 제목을 말하세요" : "듣는 중… 노래 제목을 말하세요"; };
+    var voice = null;   // { phase: "title" | "number", until: 시각, pending: {n,pr} }
+    function cleanTitle(t){ return t.replace(/\s*(찾아\s*줘|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|해\s*줘|주세요)\s*$/, "").trim(); }
+    function voiceHint(){
+      if (!voice) return;
+      $("searchHint").textContent = voice.phase === "title" ? "🎤 듣는 중… 노래 제목이나 가수를 말하세요"
+        : (lastResults.length ? "🎤 계속 듣는 중… 부를 곡의 번호를 말하세요 (예: “3번”, “2번 우선예약”)" : "🔍 찾는 중… 결과가 나오면 바로 번호를 말하세요");
+    }
+    function endVoice(msg){
+      voice = null;
+      if (rec) { try { rec.onend = null; rec.stop(); } catch (e) {} }
+      listening = false; $("micBtn").classList.remove("listening");
+      if (msg) $("searchHint").textContent = msg;
+    }
+    function doNumber(cmd){
+      if (cmd.n > lastResults.length) { $("searchHint").textContent = cmd.n + "번은 목록에 없어요. 1번부터 " + lastResults.length + "번 중에서 말해 주세요."; return false; }
+      var title = lastResults[cmd.n - 1].title;
+      endVoice();
+      reserveAt(cmd.n - 1, cmd.pr);
+      toast(cmd.n + "번 " + (cmd.pr ? "우선예약" : "예약") + " 됐어요: " + title);
+      return true;
+    }
+    function heard(text){
+      if (!voice) return;
+      var t = cleanTitle(text);
+      if (!t) return;
+      var cmd = numberCommand(text);
+      if (voice.phase === "number" && cmd) {
+        if (lastResults.length) doNumber(cmd);
+        else { voice.pending = cmd; $("searchHint").textContent = cmd.n + "번 들었어요. 결과가 나오면 바로 예약할게요"; }
+        return;
+      }
+      if (voice.phase === "title" && cmd && lastResults.length) { doNumber(cmd); return; }   // 이전 결과가 떠 있을 때 바로 번호를 말한 경우
+      // 노래 제목 → 검색하고, 마이크는 계속 켜 둔 채 번호를 기다림
+      voice.phase = "number"; voice.pending = null; voice.until = Date.now() + 30000;
+      search(t);
+      voiceHint();
+    }
+    function listen(){
+      rec = new SR(); rec.lang = "ko-KR"; rec.interimResults = true; rec.continuous = true;
+      rec.onstart = function(){ listening = true; $("micBtn").classList.add("listening"); voiceHint(); };
       rec.onresult = function(ev){
         var interim = "";
-        for (var i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript; else interim += ev.results[i][0].transcript; }
-        $("q").value = (finalText || interim).trim();
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+          var tx = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) { if (voice && voice.phase === "title") $("q").value = tx.trim(); heard(tx); }
+          else interim += tx;
+        }
+        if (interim && voice && voice.phase === "title") $("q").value = interim.trim();
       };
       rec.onerror = function(ev){
-        $("searchHint").textContent = (ev.error === "not-allowed" || ev.error === "service-not-allowed") ? "마이크 권한을 허용해 주세요. 주소창 옆 설정에서 바꿀 수 있어요." :
-          ev.error === "no-speech" ? "말소리가 들리지 않았어요. 🎤를 다시 눌러 주세요." : "음성 인식이 잘 안 됐어요. 글자로 입력해도 돼요.";
+        if (ev.error === "not-allowed" || ev.error === "service-not-allowed") endVoice("마이크 권한을 허용해 주세요. 주소창 옆 설정에서 바꿀 수 있어요.");
+        else if (ev.error === "no-speech" && voice && voice.phase === "title") endVoice("말소리가 들리지 않았어요. 🎤를 다시 눌러 주세요.");
       };
       rec.onend = function(){
         listening = false; $("micBtn").classList.remove("listening");
-        var t = finalText.replace(/\s*(찾아\s*줘|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|해\s*줘|주세요)\s*$/, "").trim();
-        if (!t) return;
-        var cmd = lastResults.length ? numberCommand(finalText) : null;
-        if (cmd) {
-          if (cmd.n > lastResults.length) { $("searchHint").textContent = cmd.n + "번은 목록에 없어요. 1번부터 " + lastResults.length + "번 중에서 말해 주세요."; return; }
-          var title = lastResults[cmd.n - 1].title;
-          reserveAt(cmd.n - 1, cmd.pr);
-          toast(cmd.n + "번 " + (cmd.pr ? "우선예약" : "예약") + ": " + title);
+        // 핸드폰이 잠깐 조용하면 음성 인식을 끊는 경우가 있어서, 번호를 기다리는 동안은 자동으로 다시 켬
+        if (voice && voice.phase === "number" && Date.now() < voice.until) {
+          try { listen(); } catch (e) { endVoice("🎤를 다시 누르고 번호를 말해 주세요."); }
           return;
         }
-        search(t);
+        if (voice) endVoice(lastResults.length ? "🎤를 누르고 번호를 말하거나, 예약 버튼을 누르세요." : "");
       };
-      try { rec.start(); } catch (e) { $("searchHint").textContent = "음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."; }
+      rec.start();
+    }
+    if (!SR) { $("micBtn").hidden = true; $("searchForm").style.gridTemplateColumns = "minmax(0,1fr) auto"; }
+    else $("micBtn").addEventListener("click", function(){
+      if (voice) { endVoice("음성 인식을 멈췄어요."); return; }
+      voice = { phase: lastResults.length ? "number" : "title", until: Date.now() + 30000, pending: null };
+      if (voice.phase === "number") voice.until = Date.now() + 20000;
+      try { listen(); } catch (e) { endVoice("음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."); }
     });
+    // 결과가 도착하면: 미리 말한 번호가 있으면 바로 예약, 없으면 번호를 기다린다고 안내
+    var _showResults = showResults;
+    showResults = function(q, items){
+      _showResults(q, items);
+      if (!voice) return;
+      if (!items.length) { endVoice($("searchHint").textContent); return; }
+      voice.until = Date.now() + 30000;
+      if (voice.pending) { var p = voice.pending; voice.pending = null; doNumber(p); return; }
+      voiceHint();
+    };
     $("rmStart").addEventListener("click", function(){ send("start"); });
     $("rmPause").addEventListener("click", function(){ send("pause"); });
     $("rmNext").addEventListener("click", function(){ send("skip"); });
