@@ -248,7 +248,7 @@ details.link[open] summary{margin-bottom:8px}
         <button class="btn mic" type="button" id="micBtn" aria-label="말로 검색">🎤</button>
         <button class="btn primary" type="submit" aria-label="검색">🔍</button>
       </form>
-      <div class="ex" id="searchHint">🎤를 누르고 노래 제목을 말하거나, 글자로 입력하고 🔍를 누르세요. 노래방 반주 영상만 골라서 보여 드려요.</div>
+      <div class="ex" id="searchHint">🎤를 누르고 노래 제목을 말하거나, 글자로 입력하고 🔍를 누르세요. TJ노래방 반주 영상만 골라서 보여 드려요.</div>
       <ul class="results" id="results"></ul>
     </div>
 
@@ -2605,7 +2605,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v10";
+  var APP_VER = "v11";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2828,7 +2828,7 @@ var qrcode = function() {
     }
     function ytSearch(q, key){
       if (typeof fetch === "undefined") return Promise.reject(new Error("이 브라우저는 검색을 지원하지 않아요"));
-      var url = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=8&regionCode=KR&relevanceLanguage=ko&q=" + encodeURIComponent(q) + "&key=" + encodeURIComponent(key);
+      var url = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=25&regionCode=KR&relevanceLanguage=ko&q=" + encodeURIComponent(q) + "&key=" + encodeURIComponent(key);
       return fetch(url).then(function(r){
         return r.json().then(function(j){
           if (!r.ok) {
@@ -2850,11 +2850,13 @@ var qrcode = function() {
       if (!q) return;
       var key = getKey();
       if (!key) { reply(conn, "노트북 화면 오른쪽 ‘노래 검색 키’ 칸에 키를 먼저 등록해 주세요. 그 전에는 링크로 예약할 수 있어요.", "searchErr"); return; }
-      var full = /노래방|karaoke|반주|\bmr\b|inst/i.test(q) ? q : q + " 노래방";
+      var base = q.replace(/tj\s*노래방|tj\s*karaoke|노래방|karaoke|반주|\bmr\b/ig, " ").replace(/\s+/g, " ").trim() || q;
+      var full = base + " TJ노래방";
       reply(conn, q, "searchAck");
       stageToast("🔍 검색: " + q);
       var timeout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error("YouTube 검색 응답이 너무 늦어요. 노트북 인터넷을 확인하고 다시 검색해 주세요.")); }, 10000); });
       Promise.race([ytSearch(full, key), timeout]).then(function(items){
+        items = items.filter(function(it){ return /(^|[^a-z])tj([^a-z]|$)/i.test(it.title); }).slice(0, 10);   // TJ노래방 영상만
         if (relay) relay.pub("reply", { t: "results", q: q, items: items, to: conn.from });
       }).catch(function(err){ reply(conn, (err && err.message) || "검색에 실패했어요", "searchErr"); stageToast("⚠️ " + ((err && err.message) || "검색 실패")); });
     }
@@ -3114,7 +3116,7 @@ var qrcode = function() {
     }
     function showResults(q, items){
       lastResults = items;
-      $("searchHint").textContent = items.length ? "‘" + q + "’ 검색 결과예요. 부를 곡의 예약을 누르세요." : "‘" + q + "’ 검색 결과가 없어요. 다른 말로 찾아보세요.";
+      $("searchHint").textContent = items.length ? "‘" + q + "’ 검색 결과예요. 부를 곡의 예약을 누르세요." : "‘" + q + "’ TJ노래방 영상을 찾지 못했어요. 가수 이름을 함께 넣거나 다른 말로 찾아보세요.";
       $("results").innerHTML = items.map(function(it, i){
         return '<li class="res">' + (it.th ? '<img src="' + esc(it.th) + '" alt="" loading="lazy">' : '<span></span>') +
           '<div><div class="rt">' + esc(it.title) + '</div><div class="rc">' + esc(it.ch) + '</div>' +
