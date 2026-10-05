@@ -137,6 +137,12 @@ form.add label{font-size:12px;color:var(--ink-dim)}
 .join .inp{font-family:var(--f-led);font-size:28px;letter-spacing:.3em;text-align:center}
 .ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .ctl .btn{padding:14px 4px;white-space:nowrap;font-size:15px}
+.hf{width:100%;justify-content:flex-start;gap:10px;padding:12px 14px;font-size:14px;border-style:dashed}
+.hf-dot{width:10px;height:10px;border-radius:50%;background:var(--ink-dim);flex:none}
+.hf.on{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(91,227,164,.08)}
+.hf.on .hf-dot{background:var(--ok);animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.hf.on .hf-dot{animation:none}}
 .sbox{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px}
 .sbox .btn{padding:0 14px;font-size:18px}
 .mic.listening{background:var(--pink);border-color:var(--pink);color:#1a0612;animation:pulse 1.2s infinite}
@@ -265,6 +271,7 @@ details.link[open] summary{margin-bottom:8px}
         <button class="btn mic" type="button" id="micBtn" aria-label="말로 검색">🎤</button>
         <button class="btn primary" type="submit" aria-label="검색">🔍</button>
       </form>
+      <button class="btn hf" type="button" id="hfBtn" aria-pressed="false"><span class="hf-dot"></span><span id="hfLabel">핸즈프리 켜기 · “예약”이라고 말하면 시작</span></button>
       <div class="ex" id="searchHint">🎤를 누르고 노래 제목을 말하거나, 글자로 입력하고 🔍를 누르세요. TJ노래방 반주 영상만 골라서 보여 드려요.</div>
       <ul class="results" id="results"></ul>
     </section>
@@ -2606,7 +2613,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v16";
+  var APP_VER = "v17";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -3064,7 +3071,7 @@ var qrcode = function() {
       else if (m.t === "addOk" || m.t === "addErr") toast(m.text);
       else if (m.t === "results") { clearTimeout(searchT); showResults(m.q, m.items || []); }
       else if (m.t === "searchAck") { searchAcked = true; $("searchHint").textContent = "‘" + m.text + "’ 유튜브에서 찾는 중…"; }
-      else if (m.t === "searchErr") { clearTimeout(searchT); if (voice) endVoice(); $("searchHint").textContent = m.text; $("results").innerHTML = ""; }
+      else if (m.t === "searchErr") { clearTimeout(searchT); if (voice && voice.phase !== "wake") finish(); $("searchHint").textContent = m.text; $("results").innerHTML = ""; }
     }
 
     function render(){
@@ -3150,86 +3157,134 @@ var qrcode = function() {
     // 검색창 글자를 모두 지우면 결과도 사라지게
     $("q").addEventListener("input", function(){ if (!this.value.trim()) clearSearch(); });
 
-    /* ----- 말로 검색 → 이어서 번호 말해서 예약 (마이크는 한 번만 누르면 됨) ----- */
+    /* ----- 음성 예약 -----
+       · 🎤 한 번 누르기: 제목 → (자동으로 계속 듣기) → 번호 → 예약
+       · 핸즈프리: 한 번 켜 두면 “예약”이라고 말할 때마다 위 과정을 시작 (“예약 좋은 날”처럼 한 번에 말해도 됨) */
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    var rec = null, listening = false;
-    var voice = null;   // { phase: "title" | "number", until: 시각, pending: {n,pr} }
+    var rec = null, listening = false, hands = false, wakeLockRm = null;
+    var voice = null;   // { phase: "wake" | "title" | "number", until: 시각, pending: {n,pr} }
+    var WAKE = /(노래\s*)?예약/;
     function cleanTitle(t){ return t.replace(/\s*(찾아\s*줘|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|해\s*줘|주세요)\s*$/, "").trim(); }
+    function buzz(){ try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {} }
     function voiceHint(){
       if (!voice) return;
-      $("searchHint").textContent = voice.phase === "title" ? "🎤 듣는 중… 노래 제목이나 가수를 말하세요"
+      var h = voice.phase === "wake" ? "🎙️ 핸즈프리 대기 중… “예약”이라고 말하세요 (예: “예약, 좋은 날”)"
+        : voice.phase === "title" ? "🎤 듣는 중… 노래 제목이나 가수를 말하세요"
         : (lastResults.length ? "🎤 계속 듣는 중… 부를 곡의 번호를 말하세요 (예: “3번”, “2번 우선예약”)" : "🔍 찾는 중… 결과가 나오면 바로 번호를 말하세요");
+      $("searchHint").textContent = h;
     }
-    function endVoice(msg){
+    function setMicUi(){
+      var active = !!voice && voice.phase !== "wake";
+      $("micBtn").classList.toggle("listening", active);
+      $("hfBtn").classList.toggle("on", hands);
+      $("hfBtn").setAttribute("aria-pressed", hands ? "true" : "false");
+      $("hfLabel").textContent = hands ? "핸즈프리 켜짐 · “예약”이라고 말하세요 (누르면 끄기)" : "핸즈프리 켜기 · “예약”이라고 말하면 시작";
+    }
+    // 한 번의 예약 과정이 끝났을 때: 핸즈프리면 다시 대기, 아니면 마이크 끄기
+    function finish(msg){
+      if (hands) { voice = { phase: "wake", until: Infinity, pending: null }; setMicUi(); if (msg) $("searchHint").textContent = msg; else voiceHint(); return; }
       voice = null;
       if (rec) { try { rec.onend = null; rec.stop(); } catch (e) {} }
-      listening = false; $("micBtn").classList.remove("listening");
+      listening = false; setMicUi();
       if (msg) $("searchHint").textContent = msg;
     }
+    function stopAll(msg){ hands = false; releaseWake(); finish(msg); }
     function doNumber(cmd){
       if (cmd.n > lastResults.length) { $("searchHint").textContent = cmd.n + "번은 목록에 없어요. 1번부터 " + lastResults.length + "번 중에서 말해 주세요."; return false; }
       var title = lastResults[cmd.n - 1].title;
-      endVoice();
       reserveAt(cmd.n - 1, cmd.pr);
       toast(cmd.n + "번 " + (cmd.pr ? "우선예약" : "예약") + " 됐어요: " + title);
+      finish(hands ? "✓ " + cmd.n + "번 예약 됐어요. 다음 곡도 “예약”이라고 말하세요" : null);
       return true;
+    }
+    function startTitle(rest){
+      buzz();
+      if (rest) { voice.phase = "number"; voice.pending = null; voice.until = Date.now() + 30000; $("q").value = rest; search(rest); voiceHint(); }
+      else { voice.phase = "title"; voice.until = Date.now() + 12000; voiceHint(); }
+      setMicUi();
     }
     function heard(text){
       if (!voice) return;
-      var t = cleanTitle(text);
+      var raw = text.trim();
+      if (voice.phase === "wake") {
+        if (!WAKE.test(raw)) return;                              // “예약” 소리가 들릴 때까지 무시
+        var rest = cleanTitle(raw.replace(/^.*?(노래\s*)?예약(해\s*줘|해\s*주세요|할게요?|하기)?[\s,.!]*/, ""));
+        startTitle(rest);
+        return;
+      }
+      var t = cleanTitle(raw);
       if (!t) return;
-      var cmd = numberCommand(text);
+      var cmd = numberCommand(raw);
       if (voice.phase === "number" && cmd) {
         if (lastResults.length) doNumber(cmd);
         else { voice.pending = cmd; $("searchHint").textContent = cmd.n + "번 들었어요. 결과가 나오면 바로 예약할게요"; }
         return;
       }
-      if (voice.phase === "title" && cmd && lastResults.length) { doNumber(cmd); return; }   // 이전 결과가 떠 있을 때 바로 번호를 말한 경우
-      // 노래 제목 → 검색하고, 마이크는 계속 켜 둔 채 번호를 기다림
+      if (voice.phase === "title" && cmd && lastResults.length) { doNumber(cmd); return; }
+      t = cleanTitle(t.replace(/^(노래\s*)?예약[\s,.!]*/, "")) || t;   // “예약, 좋은 날”처럼 다시 말해도 제목만
       voice.phase = "number"; voice.pending = null; voice.until = Date.now() + 30000;
-      search(t);
-      voiceHint();
+      $("q").value = t; search(t); voiceHint(); setMicUi();
     }
+    // 단계별 시간 초과 확인 (제목을 말하지 않거나 번호를 말하지 않을 때)
+    setInterval(function(){
+      if (!voice || voice.phase === "wake" || Date.now() < voice.until) return;
+      finish(voice.phase === "title" ? (hands ? "제목을 못 들었어요. 다시 “예약”이라고 말하세요" : "말소리가 들리지 않았어요. 🎤를 다시 눌러 주세요.")
+                                     : (lastResults.length ? "🎤를 누르고 번호를 말하거나, 예약 버튼을 누르세요." : ""));
+    }, 1000);
     function listen(){
       rec = new SR(); rec.lang = "ko-KR"; rec.interimResults = true; rec.continuous = true;
-      rec.onstart = function(){ listening = true; $("micBtn").classList.add("listening"); voiceHint(); };
+      rec.onstart = function(){ listening = true; setMicUi(); voiceHint(); };
       rec.onresult = function(ev){
         var interim = "";
         for (var i = ev.resultIndex; i < ev.results.length; i++) {
           var tx = ev.results[i][0].transcript;
-          if (ev.results[i].isFinal) { if (voice && voice.phase === "title") $("q").value = tx.trim(); heard(tx); }
-          else interim += tx;
+          if (ev.results[i].isFinal) heard(tx); else interim += tx;
         }
         if (interim && voice && voice.phase === "title") $("q").value = interim.trim();
       };
       rec.onerror = function(ev){
-        if (ev.error === "not-allowed" || ev.error === "service-not-allowed") endVoice("마이크 권한을 허용해 주세요. 주소창 옆 설정에서 바꿀 수 있어요.");
-        else if (ev.error === "no-speech" && voice && voice.phase === "title") endVoice("말소리가 들리지 않았어요. 🎤를 다시 눌러 주세요.");
+        if (ev.error === "not-allowed" || ev.error === "service-not-allowed") stopAll("마이크 권한을 허용해 주세요. 주소창 옆 설정에서 바꿀 수 있어요.");
       };
       rec.onend = function(){
-        listening = false; $("micBtn").classList.remove("listening");
-        // 핸드폰이 잠깐 조용하면 음성 인식을 끊는 경우가 있어서, 번호를 기다리는 동안은 자동으로 다시 켬
-        if (voice && voice.phase === "number" && Date.now() < voice.until) {
-          try { listen(); } catch (e) { endVoice("🎤를 다시 누르고 번호를 말해 주세요."); }
+        listening = false;
+        // 핸드폰은 잠깐 조용하면 음성 인식을 끊기 때문에, 듣는 중이어야 하면 자동으로 다시 켬
+        if (voice && (hands || Date.now() < voice.until)) {
+          setTimeout(function(){ if (!voice || listening) return; try { listen(); } catch (e) { stopAll(hands ? "핸즈프리가 꺼졌어요. 다시 켜 주세요." : "🎤를 다시 눌러 주세요."); } }, 250);
           return;
         }
-        if (voice) endVoice(lastResults.length ? "🎤를 누르고 번호를 말하거나, 예약 버튼을 누르세요." : "");
+        finish();
       };
       rec.start();
     }
-    if (!SR) { $("micBtn").hidden = true; $("searchForm").style.gridTemplateColumns = "minmax(0,1fr) auto"; }
-    else $("micBtn").addEventListener("click", function(){
-      if (voice) { endVoice("음성 인식을 멈췄어요."); return; }
-      voice = { phase: lastResults.length ? "number" : "title", until: Date.now() + 30000, pending: null };
-      if (voice.phase === "number") voice.until = Date.now() + 20000;
-      try { listen(); } catch (e) { endVoice("음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."); }
+    function requestWakeRm(){ try { if (navigator.wakeLock) navigator.wakeLock.request("screen").then(function(l){ wakeLockRm = l; }).catch(function(){}); } catch (e) {} }
+    function releaseWake(){ try { if (wakeLockRm) wakeLockRm.release(); } catch (e) {} wakeLockRm = null; }
+    document.addEventListener("visibilitychange", function(){
+      if (document.visibilityState === "visible" && hands) { requestWakeRm(); if (!listening) { try { listen(); } catch (e) {} } }
     });
+    if (!SR) { $("micBtn").hidden = true; $("hfBtn").hidden = true; $("searchForm").style.gridTemplateColumns = "minmax(0,1fr) auto"; }
+    else {
+      $("micBtn").addEventListener("click", function(){
+        if (voice && voice.phase !== "wake") { finish("음성 인식을 멈췄어요."); return; }
+        var wasOn = !!voice;
+        voice = { phase: lastResults.length ? "number" : "title", until: Date.now() + (lastResults.length ? 20000 : 12000), pending: null };
+        setMicUi(); voiceHint();
+        if (!wasOn) { try { listen(); } catch (e) { stopAll("음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."); } }
+      });
+      $("hfBtn").addEventListener("click", function(){
+        if (hands) { stopAll("핸즈프리를 껐어요."); return; }
+        hands = true; requestWakeRm();
+        var wasOn = !!voice;
+        voice = { phase: "wake", until: Infinity, pending: null };
+        setMicUi(); voiceHint();
+        if (!wasOn) { try { listen(); } catch (e) { stopAll("음성 인식을 시작하지 못했어요."); } }
+      });
+    }
     // 결과가 도착하면: 미리 말한 번호가 있으면 바로 예약, 없으면 번호를 기다린다고 안내
     var _showResults = showResults;
     showResults = function(q, items){
       _showResults(q, items);
-      if (!voice) return;
-      if (!items.length) { endVoice($("searchHint").textContent); return; }
+      if (!voice || voice.phase === "wake") return;
+      if (!items.length) { finish($("searchHint").textContent); return; }
       voice.until = Date.now() + 30000;
       if (voice.pending) { var p = voice.pending; voice.pending = null; doNumber(p); return; }
       voiceHint();
