@@ -136,7 +136,7 @@ form.add label{font-size:12px;color:var(--ink-dim)}
 .join{display:flex;flex-direction:column;gap:12px;margin-top:10vh}
 .join .inp{font-family:var(--f-led);font-size:28px;letter-spacing:.3em;text-align:center}
 .ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.ctl .btn{padding:14px 4px}
+.ctl .btn{padding:14px 4px;white-space:nowrap;font-size:15px}
 .sbox{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px}
 .sbox .btn{padding:0 14px;font-size:18px}
 .mic.listening{background:var(--pink);border-color:var(--pink);color:#1a0612;animation:pulse 1.2s infinite}
@@ -144,6 +144,9 @@ form.add label{font-size:12px;color:var(--ink-dim)}
 @media (prefers-reduced-motion:reduce){.mic.listening{animation:none}}
 .results{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .res{display:grid;grid-template-columns:112px minmax(0,1fr);gap:10px;background:var(--panel-2);border-radius:12px;padding:8px;align-items:start}
+.res{position:relative}
+.res .rno{position:absolute;left:4px;top:4px;z-index:1;display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 6px;border-radius:15px;background:var(--pink);color:#1a0612;font-family:var(--f-led);font-weight:700;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.res.picked{outline:2px solid var(--pink)}
 .res img{width:112px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;background:#000}
 .res .rt{font-size:14px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .res .rc{font-size:12px;color:var(--ink-dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2603,7 +2606,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v14";
+  var APP_VER = "v15";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -3104,20 +3107,38 @@ var qrcode = function() {
     }
     function showResults(q, items){
       lastResults = items;
-      $("searchHint").textContent = items.length ? "‘" + q + "’ 검색 결과예요. 부를 곡의 예약을 누르세요." : "‘" + q + "’ TJ노래방 영상을 찾지 못했어요. 가수 이름을 함께 넣거나 다른 말로 찾아보세요.";
+      $("searchHint").textContent = items.length ? "‘" + q + "’ 검색 결과예요. 예약을 누르거나, 🎤를 누르고 “3번 예약”처럼 번호를 말하세요." : "‘" + q + "’ TJ노래방 영상을 찾지 못했어요. 가수 이름을 함께 넣거나 다른 말로 찾아보세요.";
       $("results").innerHTML = items.map(function(it, i){
-        return '<li class="res">' + (it.th ? '<img src="' + esc(it.th) + '" alt="" loading="lazy">' : '<span></span>') +
+        return '<li class="res"><span class="rno">' + (i + 1) + '</span>' + (it.th ? '<img src="' + esc(it.th) + '" alt="" loading="lazy">' : '<span style="aspect-ratio:16/9;width:112px;background:#000;border-radius:8px"></span>') +
           '<div><div class="rt">' + esc(it.title) + '</div><div class="rc">' + esc(it.ch) + '</div>' +
           '<div class="ra"><button class="btn primary" type="button" data-i="' + i + '">예약</button><button class="btn" type="button" data-i="' + i + '" data-pr="1">우선예약</button></div></div></li>';
       }).join("");
     }
     $("searchForm").addEventListener("submit", function(e){ e.preventDefault(); search(); });
+    function reserveAt(i, pr){
+      var it = lastResults[i]; if (!it) return false;
+      send("reserveId", { vid: it.vid, title: it.title, pr: !!pr });
+      clearSearch();   // 예약하면 검색창과 결과를 비워서 다음 곡을 바로 찾을 수 있게
+      return true;
+    }
     $("results").addEventListener("click", function(e){
       var b = e.target.closest("button[data-i]"); if (!b) return;
-      var it = lastResults[+b.dataset.i]; if (!it) return;
-      send("reserveId", { vid: it.vid, title: it.title, pr: !!b.dataset.pr });
-      clearSearch();   // 예약하면 검색창과 결과를 비워서 다음 곡을 바로 찾을 수 있게
+      reserveAt(+b.dataset.i, !!b.dataset.pr);
     });
+    // "3번 예약", "삼 번", "세 번째 우선예약", "첫 번째" 같은 말에서 번호 찾기
+    var KO_NUM = { "일":1,"이":2,"삼":3,"사":4,"오":5,"육":6,"륙":6,"칠":7,"팔":8,"구":9,"십":10,
+                   "하나":1,"한":1,"첫":1,"첫째":1,"둘":2,"두":2,"셋":3,"세":3,"넷":4,"네":4,"다섯":5,"여섯":6,"일곱":7,"여덟":8,"아홉":9,"열":10 };
+    function numberCommand(t){
+      var s0 = t.replace(/\s+/g, " ").trim();
+      var pr = /우선/.test(s0);
+      // 번호 말고 다른 말이 거의 없을 때만 번호 명령으로 봄 (노래 제목과 헷갈리지 않게)
+      var rest = s0.replace(/우선\s*예약|예약|해\s*줘|해\s*주세요|주세요|부탁해요?|틀어\s*줘|곡|노래|으로|로|을|를|이요|요|요\.|번째|번쨰|째|번|\./g, " ").replace(/\s+/g, "").trim();
+      var n = null;
+      if (/^\d{1,2}$/.test(rest)) n = +rest;
+      else if (Object.prototype.hasOwnProperty.call(KO_NUM, rest)) n = KO_NUM[rest];
+      if (!n || !/번|째|^\s*\d{1,2}\s*$/.test(s0)) return null;
+      return { n: n, pr: pr };
+    }
     var HINT0 = $("searchHint").textContent;
     function clearSearch(){
       clearTimeout(searchT);
@@ -3137,7 +3158,7 @@ var qrcode = function() {
       if (listening) { try { rec.stop(); } catch (e) {} return; }
       rec = new SR(); rec.lang = "ko-KR"; rec.interimResults = true; rec.continuous = false;
       var finalText = "";
-      rec.onstart = function(){ listening = true; $("micBtn").classList.add("listening"); $("searchHint").textContent = "듣는 중… 노래 제목을 말하세요"; };
+      rec.onstart = function(){ listening = true; $("micBtn").classList.add("listening"); $("searchHint").textContent = lastResults.length ? "듣는 중… “3번 예약”처럼 번호를 말하거나, 새 노래 제목을 말하세요" : "듣는 중… 노래 제목을 말하세요"; };
       rec.onresult = function(ev){
         var interim = "";
         for (var i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript; else interim += ev.results[i][0].transcript; }
@@ -3149,8 +3170,17 @@ var qrcode = function() {
       };
       rec.onend = function(){
         listening = false; $("micBtn").classList.remove("listening");
-        var t = finalText.replace(/(노래)?\s*(찾아\s*줘|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|해\s*줘|주세요)\s*$/, "").trim();
-        if (t) search(t);
+        var t = finalText.replace(/\s*(찾아\s*줘|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|해\s*줘|주세요)\s*$/, "").trim();
+        if (!t) return;
+        var cmd = lastResults.length ? numberCommand(finalText) : null;
+        if (cmd) {
+          if (cmd.n > lastResults.length) { $("searchHint").textContent = cmd.n + "번은 목록에 없어요. 1번부터 " + lastResults.length + "번 중에서 말해 주세요."; return; }
+          var title = lastResults[cmd.n - 1].title;
+          reserveAt(cmd.n - 1, cmd.pr);
+          toast(cmd.n + "번 " + (cmd.pr ? "우선예약" : "예약") + ": " + title);
+          return;
+        }
+        search(t);
       };
       try { rec.start(); } catch (e) { $("searchHint").textContent = "음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."; }
     });
