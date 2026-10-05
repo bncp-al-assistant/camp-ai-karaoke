@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>캠프 YouTube 노래방</title>
+<title>캠프 AI 노래방</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -183,7 +183,7 @@ details.link[open] summary{margin-bottom:8px}
 <!-- ================= TV 화면 ================= -->
 <div class="tv" id="tvApp" hidden>
   <header>
-    <h1 class="brand"><b>캠프</b> <span>YouTube 노래방</span></h1>
+    <h1 class="brand"><span>캠프</span> <b>AI</b> <span>노래방</span></h1>
     <div class="hint">핸드폰으로 QR을 찍어 노래를 검색해서 예약하세요 · 단축키: Space 일시정지, F 전체화면, N 다음 곡</div>
   </header>
 
@@ -238,7 +238,7 @@ details.link[open] summary{margin-bottom:8px}
 <!-- ================= 핸드폰 리모컨 ================= -->
 <div class="remote" id="rmApp" hidden>
   <header>
-    <h1 class="brand"><b>캠프</b> <span>YouTube 노래방</span></h1>
+    <h1 class="brand"><span>캠프</span> <b>AI</b> <span>노래방</span></h1>
     <span class="pill" id="rmStatus">연결 중</span>
   </header>
   <div class="hint" style="text-align:right;margin-top:-6px">버전 <span id="verRm"></span></div>
@@ -2613,7 +2613,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v17";
+  var APP_VER = "v19";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2755,7 +2755,7 @@ var qrcode = function() {
     function qrBlock(){ return '<div class="row2"><div class="qr-big">' + qrSvg(remoteUrl) + '</div><div><div class="small">방 번호</div><div class="code">' + roomCode + '</div></div></div>'; }
     function idleScreen(){
       if (!activated) {
-        showScreen('<div class="big"><span class="p">캠프</span> <span class="s">YouTube 노래방</span></div>' +
+        showScreen('<div class="big"><span class="s">캠프</span> <span class="p">AI</span> <span class="s">노래방</span></div>' +
           '<div class="small">노트북에서 이 버튼을 한 번 눌러야 소리가 나와요</div>' +
           '<button class="btn primary" type="button" id="activateBtn">TV 화면 켜기</button>');
         $("activateBtn").addEventListener("click", activate);
