@@ -271,7 +271,7 @@ details.link[open] summary{margin-bottom:8px}
         <button class="btn mic" type="button" id="micBtn" aria-label="말로 검색">🎤</button>
         <button class="btn primary" type="submit" aria-label="검색">🔍</button>
       </form>
-      <button class="btn hf" type="button" id="hfBtn" aria-pressed="false"><span class="hf-dot"></span><span id="hfLabel">핸즈프리 켜기 · “예약”이라고 말하면 시작</span></button>
+      <button class="btn hf" type="button" id="hfBtn" aria-pressed="false"><span class="hf-dot"></span><span id="hfLabel">핸즈프리 켜기 - 여기를 터치해 주세요</span></button>
       <div class="ex" id="searchHint">🎤를 누르고 노래 제목을 말하거나, 글자로 입력하고 🔍를 누르세요. TJ노래방 반주 영상만 골라서 보여 드려요.</div>
       <ul class="results" id="results"></ul>
     </section>
@@ -2613,7 +2613,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v20";
+  var APP_VER = "v21";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -3178,7 +3178,7 @@ var qrcode = function() {
       $("micBtn").classList.toggle("listening", active);
       $("hfBtn").classList.toggle("on", hands);
       $("hfBtn").setAttribute("aria-pressed", hands ? "true" : "false");
-      $("hfLabel").textContent = hands ? "핸즈프리 켜짐 · “예약”이라고 말하세요 (누르면 끄기)" : "핸즈프리 켜기 · “예약”이라고 말하면 시작";
+      $("hfLabel").textContent = hands ? "핸즈프리 켜짐 · “예약”이라고 말하세요 (누르면 끄기)" : "핸즈프리 켜기 - 여기를 터치해 주세요";
     }
     // 한 번의 예약 과정이 끝났을 때: 핸즈프리면 다시 대기, 아니면 마이크 끄기
     function finish(msg){
