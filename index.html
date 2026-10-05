@@ -2605,7 +2605,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v9";
+  var APP_VER = "v10";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -3126,8 +3126,18 @@ var qrcode = function() {
       var b = e.target.closest("button[data-i]"); if (!b) return;
       var it = lastResults[+b.dataset.i]; if (!it) return;
       send("reserveId", { vid: it.vid, title: it.title, pr: !!b.dataset.pr });
-      b.textContent = "✓ 예약됨"; b.disabled = true;
+      clearSearch();   // 예약하면 검색창과 결과를 비워서 다음 곡을 바로 찾을 수 있게
     });
+    var HINT0 = $("searchHint").textContent;
+    function clearSearch(){
+      clearTimeout(searchT);
+      lastResults = [];
+      $("results").innerHTML = "";
+      $("q").value = "";
+      $("searchHint").textContent = HINT0;
+    }
+    // 검색창 글자를 모두 지우면 결과도 사라지게
+    $("q").addEventListener("input", function(){ if (!this.value.trim()) clearSearch(); });
 
     /* ----- 말로 검색 ----- */
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
