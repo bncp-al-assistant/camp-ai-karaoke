@@ -152,6 +152,20 @@ form.add label{font-size:12px;color:var(--ink-dim)}
 details.link summary{cursor:pointer;color:var(--ink-dim);font-size:13px;padding:4px 0}
 details.link[open] summary{margin-bottom:8px}
 .key-row{display:flex;gap:6px}.key-row .inp{flex:1;min-width:0;font-size:13px}
+.ways{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.way{display:flex;gap:10px;align-items:center;padding:12px;border-radius:14px;text-decoration:none;color:var(--ink);border:1px solid var(--line);background:var(--panel)}
+.way b{display:block;font-size:14px;line-height:1.25}
+.way small{display:block;font-size:11px;color:var(--ink-dim);margin-top:2px}
+.no{flex:none;display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;font-family:var(--f-led);font-size:17px;font-weight:700;color:#1a0612}
+.w1 .no,.m1 .no{background:var(--pink)} .w2 .no,.m2 .no{background:#ff3b3b;color:#fff}
+.w1{border-color:rgba(255,79,163,.45)} .w2{border-color:rgba(255,59,59,.45)}
+.method{scroll-margin-top:12px}
+.m1{border-color:rgba(255,79,163,.5);box-shadow:inset 0 3px 0 var(--pink)}
+.m2{border-color:rgba(255,59,59,.5);box-shadow:inset 0 3px 0 #ff3b3b}
+.mhead{display:flex;gap:10px;align-items:center}
+.mhead .no{width:36px;height:36px;font-size:20px}
+.mhead h2{display:block;font-size:19px}
+.msub{font-size:12px;color:var(--ink-dim);margin-top:2px}
 .yt-btn{background:#ff3b3b;border-color:#ff3b3b;color:#fff;font-weight:700}
 </style>
 </head>
@@ -241,8 +255,14 @@ details.link[open] summary{margin-bottom:8px}
       </div>
     </div>
 
-    <div class="card">
-      <h2>노래 찾기</h2>
+    <!-- 예약 방법 두 가지 한눈에 -->
+    <div class="ways">
+      <a class="way w1" href="#way1"><span class="no">1</span><span><b>음성·글자 검색</b><small>제목 말하고 바로 예약</small></span></a>
+      <a class="way w2" href="#way2"><span class="no">2</span><span><b>유튜브 링크</b><small>링크 붙여넣고 예약</small></span></a>
+    </div>
+
+    <section class="card method m1" id="way1">
+      <div class="mhead"><span class="no">1</span><div><h2>음성 · 글자로 검색해서 예약</h2><div class="msub">🎤 말하거나 ⌨️ 입력 → 🔍 → 예약</div></div></div>
       <form class="sbox" id="searchForm">
         <input class="inp" id="q" type="search" placeholder="노래 제목이나 가수" autocomplete="off" enterkeyhint="search" aria-label="노래 검색">
         <button class="btn mic" type="button" id="micBtn" aria-label="말로 검색">🎤</button>
@@ -250,24 +270,20 @@ details.link[open] summary{margin-bottom:8px}
       </form>
       <div class="ex" id="searchHint">🎤를 누르고 노래 제목을 말하거나, 글자로 입력하고 🔍를 누르세요. TJ노래방 반주 영상만 골라서 보여 드려요.</div>
       <ul class="results" id="results"></ul>
-    </div>
+    </section>
 
-    <div class="card">
-      <details class="link" id="linkBox">
-      <summary>유튜브 링크로 직접 예약하기</summary>
-      <a class="btn yt-btn big-btn" id="ytGo" href="https://m.youtube.com/results?search_query=TJ+%EB%85%B8%EB%9E%98%EB%B0%A9" target="_blank" rel="noopener">▶ 유튜브에서 노래 찾기</a>
-      <div class="ex" style="margin:8px 0">유튜브에서 반주 영상을 열고 <b>공유 → 링크 복사</b>를 누른 뒤, 아래 칸에 붙여넣고 <b>예약</b>을 누르세요.</div>
+    <section class="card method m2" id="way2">
+      <div class="mhead"><span class="no">2</span><div><h2>유튜브 링크로 예약</h2><div class="msub">유튜브 → 공유 → 링크 복사 → 붙여넣기</div></div></div>
+      <a class="btn yt-btn big-btn" id="ytGo" href="https://m.youtube.com/results?search_query=TJ+%EB%85%B8%EB%9E%98%EB%B0%A9" target="_blank" rel="noopener">▶ 유튜브 열어서 노래 찾기</a>
       <form class="add" id="addForm">
-        <label for="url">유튜브 링크</label>
-        <input class="inp" id="url" placeholder="여기를 길게 눌러 붙여넣기" autocomplete="off" inputmode="url">
+        <input class="inp" id="url" placeholder="복사한 링크를 여기에 길게 눌러 붙여넣기" autocomplete="off" inputmode="url" aria-label="유튜브 링크">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
           <button class="btn primary big-btn" type="submit">예약</button>
           <button class="btn big-btn" type="button" id="priorityBtn">우선예약</button>
         </div>
         <div class="msg" id="msg"></div>
       </form>
-      </details>
-    </div>
+    </section>
 
     <div class="card">
       <h2>예약 목록 <small id="rmQueueCount">0곡</small></h2>
@@ -2605,7 +2621,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v11";
+  var APP_VER = "v12";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
