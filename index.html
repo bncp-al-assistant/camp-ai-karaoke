@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-/* Layout: TV 모드 = 큰 무대 + 오른쪽 연결/예약 목록. 리모컨 모드 = 핸드폰 세로 한 줄 (링크 예약 → 예약 목록) */
+/* Layout: TV 모드 = 큰 무대 + 오른쪽 연결/예약 목록. 리모컨 모드 = 핸드폰 세로 한 줄 (노래 검색 예약 → 예약 목록) */
 :root{
   --room:#0d0b1f; --panel:#17142f; --panel-2:#211d42; --line:#2f2a5c;
   --ink:#ecebff; --ink-dim:#9a96c8;
@@ -175,7 +175,7 @@ details.link[open] summary{margin-bottom:8px}
 <div class="tv" id="tvApp" hidden>
   <header>
     <h1 class="brand"><b>캠프</b> <span>YouTube 노래방</span></h1>
-    <div class="hint">핸드폰으로 QR을 찍어 유튜브 링크로 예약하세요 · 단축키: Space 일시정지, F 전체화면, N 다음 곡</div>
+    <div class="hint">핸드폰으로 QR을 찍어 노래를 검색해서 예약하세요 · 단축키: Space 일시정지, F 전체화면, N 다음 곡</div>
   </header>
 
   <section class="stage-wrap">
@@ -255,14 +255,8 @@ details.link[open] summary{margin-bottom:8px}
       </div>
     </div>
 
-    <!-- 예약 방법 두 가지 한눈에 -->
-    <div class="ways">
-      <a class="way w1" href="#way1"><span class="no">1</span><span><b>음성·글자 검색</b><small>제목 말하고 바로 예약</small></span></a>
-      <a class="way w2" href="#way2"><span class="no">2</span><span><b>유튜브 링크</b><small>링크 붙여넣고 예약</small></span></a>
-    </div>
-
     <section class="card method m1" id="way1">
-      <div class="mhead"><span class="no">1</span><div><h2>음성 · 글자로 검색해서 예약</h2><div class="msub">🎤 말하거나 ⌨️ 입력 → 🔍 → 예약</div></div></div>
+      <div class="mhead"><span class="no">🎤</span><div><h2>노래 검색해서 예약</h2><div class="msub">🎤 말하거나 ⌨️ 입력 → 🔍 → 예약</div></div></div>
       <form class="sbox" id="searchForm">
         <input class="inp" id="q" type="search" placeholder="노래 제목이나 가수" autocomplete="off" enterkeyhint="search" aria-label="노래 검색">
         <button class="btn mic" type="button" id="micBtn" aria-label="말로 검색">🎤</button>
@@ -272,18 +266,6 @@ details.link[open] summary{margin-bottom:8px}
       <ul class="results" id="results"></ul>
     </section>
 
-    <section class="card method m2" id="way2">
-      <div class="mhead"><span class="no">2</span><div><h2>유튜브 링크로 예약</h2><div class="msub">유튜브 → 공유 → 링크 복사 → 붙여넣기</div></div></div>
-      <a class="btn yt-btn big-btn" id="ytGo" href="https://m.youtube.com/results?search_query=TJ+%EB%85%B8%EB%9E%98%EB%B0%A9" target="_blank" rel="noopener">▶ 유튜브 열어서 노래 찾기</a>
-      <form class="add" id="addForm">
-        <input class="inp" id="url" placeholder="복사한 링크를 여기에 길게 눌러 붙여넣기" autocomplete="off" inputmode="url" aria-label="유튜브 링크">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <button class="btn primary big-btn" type="submit">예약</button>
-          <button class="btn big-btn" type="button" id="priorityBtn">우선예약</button>
-        </div>
-        <div class="msg" id="msg"></div>
-      </form>
-    </section>
 
     <div class="card">
       <h2>예약 목록 <small id="rmQueueCount">0곡</small></h2>
@@ -2621,7 +2603,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v12";
+  var APP_VER = "v13";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2748,7 +2730,7 @@ var qrcode = function() {
       q.innerHTML = state.queue.length ? state.queue.map(function(s, i){
         return '<li class="row' + (i === 0 ? ' first' : '') + '"><span class="n">' + (i + 1) + '</span><span class="t" title="' + esc(songTitle(s)) + '">' + esc(songTitle(s)) + '</span>' +
           '<span class="acts"><button class="icon del" type="button" data-uid="' + s.uid + '" aria-label="예약 취소">✕</button></span></li>';
-      }).join("") : '<li class="empty">예약된 곡이 없어요. 핸드폰 리모컨에서 유튜브 링크로 예약하세요.</li>';
+      }).join("") : '<li class="empty">예약된 곡이 없어요. 핸드폰 리모컨에서 노래를 검색해서 예약하세요.</li>';
       $("queueCount").textContent = state.queue.length + "곡";
       $("nowText").textContent = current ? songTitle(current) : "없음";
       var mq = $("marquee");
@@ -2770,7 +2752,7 @@ var qrcode = function() {
         return;
       }
       showScreen('<div class="big"><span class="p">노래</span>를 <span class="s">예약</span>해 주세요</div>' + qrBlock() +
-        '<div class="small">핸드폰 카메라로 QR을 찍고 유튜브 링크를 붙여넣으면 바로 시작돼요</div>');
+        '<div class="small">핸드폰 카메라로 QR을 찍고 노래를 검색해서 예약하면 바로 시작돼요</div>');
     }
     function activate(){
       activated = true;
@@ -2849,7 +2831,7 @@ var qrcode = function() {
         return r.json().then(function(j){
           if (!r.ok) {
             var reason = (j && j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || "";
-            var why = /quota/i.test(reason) ? "오늘 검색 횟수를 다 썼어요. 내일 다시 되거나, 링크로 예약해 주세요." :
+            var why = /quota/i.test(reason) ? "오늘 검색 횟수를 다 썼어요. 내일 다시 검색할 수 있어요." :
                       /keyInvalid|badRequest/i.test(reason) || r.status === 400 ? "검색 키가 올바르지 않아요. 노트북에서 키를 다시 확인해 주세요." :
                       r.status === 403 ? "검색 키 사용이 막혀 있어요. 키 설정(사이트 제한, YouTube API 사용 설정)을 확인해 주세요." : "검색에 실패했어요 (" + r.status + ")";
             throw new Error(why);
@@ -2865,7 +2847,7 @@ var qrcode = function() {
       q = String(q || "").trim().slice(0, 80);
       if (!q) return;
       var key = getKey();
-      if (!key) { reply(conn, "노트북 화면 오른쪽 ‘노래 검색 키’ 칸에 키를 먼저 등록해 주세요. 그 전에는 링크로 예약할 수 있어요.", "searchErr"); return; }
+      if (!key) { reply(conn, "노트북 화면 오른쪽 ‘노래 검색 키’ 칸에 키를 먼저 등록해 주세요. ", "searchErr"); return; }
       var base = q.replace(/tj\s*노래방|tj\s*karaoke|노래방|karaoke|반주|\bmr\b/ig, " ").replace(/\s+/g, " ").trim() || q;
       var full = base + " TJ노래방";
       reply(conn, q, "searchAck");
@@ -2931,7 +2913,7 @@ var qrcode = function() {
       var why = (e.data === 101 || e.data === 150) ? "업로더가 다른 사이트 재생을 막아 둔 영상이에요" :
                 (e.data === 100 ? "삭제되었거나 비공개인 영상이에요" :
                 (e.data === 153 ? "https:// 주소로 연 페이지에서만 재생돼요" : "재생할 수 없는 영상이에요"));
-      showScreen('<div class="big">재생할 수 없어요</div><div class="small">' + esc(why) + '<br>같은 노래의 다른 영상 링크로 예약해 주세요. 5초 뒤 다음 곡으로 넘어가요.</div>');
+      showScreen('<div class="big">재생할 수 없어요</div><div class="small">' + esc(why) + '<br>같은 노래의 다른 영상으로 다시 예약해 주세요. 5초 뒤 다음 곡으로 넘어가요.</div>');
       reply({ from: "*" }, (current ? songTitle(current) + ": " : "") + why);
       endTimer = setTimeout(playNext, 5000);
     }
@@ -3076,8 +3058,7 @@ var qrcode = function() {
       if (m.to !== myId && m.to !== "*") return;
       lastTv = Date.now();
       if (m.t === "toast") toast(m.text);
-      else if (m.t === "addOk") { var el = $("msg"); el.className = "msg ok"; el.textContent = m.text; $("url").value = ""; toast(m.text); }
-      else if (m.t === "addErr") { var el2 = $("msg"); el2.className = "msg err"; el2.textContent = m.text; }
+      else if (m.t === "addOk" || m.t === "addErr") toast(m.text);
       else if (m.t === "results") { clearTimeout(searchT); showResults(m.q, m.items || []); }
       else if (m.t === "searchAck") { searchAcked = true; $("searchHint").textContent = "‘" + m.text + "’ 유튜브에서 찾는 중…"; }
       else if (m.t === "searchErr") { clearTimeout(searchT); $("searchHint").textContent = m.text; $("results").innerHTML = ""; }
@@ -3088,7 +3069,7 @@ var qrcode = function() {
       $("rmPause").textContent = (S.current && !S.playing) ? "▶ 다시 재생" : "❚❚ 일시정지";
       var warn = "";
       if (S.ver && S.ver !== APP_VER) warn = "⚠️ 노트북 화면이 예전 버전(" + S.ver + ")이에요. 노트북에서 Ctrl + Shift + R을 눌러 주세요.";
-      else if (S.ver && !S.hasKey) warn = "노래 검색을 쓰려면 노트북 화면 오른쪽 아래 ‘노래 검색 키’를 등록해 주세요. 링크 예약은 지금도 돼요.";
+      else if (S.ver && !S.hasKey) warn = "노래 검색을 쓰려면 노트북 화면 오른쪽 아래 ‘노래 검색 키’를 등록해 주세요. ";
       else if (!S.ver && lastStateTs) warn = "⚠️ 노트북 화면이 예전 버전이에요. 노트북에서 Ctrl + Shift + R을 눌러 주세요.";
       $("rmWarn").textContent = warn; $("rmWarn").hidden = !warn;
       var q = $("rmQueue");
@@ -3100,15 +3081,6 @@ var qrcode = function() {
     }
 
     /* ----- 버튼 ----- */
-    function reserve(pr){
-      var url = $("url").value.trim();
-      var el = $("msg");
-      if (!url) { el.className = "msg err"; el.textContent = "유튜브 링크를 붙여넣어 주세요."; return; }
-      if (!/youtu\.?be|^[A-Za-z0-9_-]{11}$/.test(url)) { el.className = "msg err"; el.textContent = "유튜브 링크가 아닌 것 같아요. 유튜브에서 공유 → 링크 복사로 받은 주소를 넣어 주세요."; return; }
-      el.className = "msg"; el.textContent = "예약하는 중…";
-      send("reserve", { url: url, title: "", pr: pr });
-    }
-    $("addForm").addEventListener("submit", function(e){ e.preventDefault(); reserve(false); });
 
     /* ----- 노래 검색 ----- */
     var lastResults = [], searchT = null, searchAcked = false;
@@ -3182,7 +3154,6 @@ var qrcode = function() {
       };
       try { rec.start(); } catch (e) { $("searchHint").textContent = "음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."; }
     });
-    $("priorityBtn").addEventListener("click", function(){ reserve(true); });
     $("rmStart").addEventListener("click", function(){ send("start"); });
     $("rmPause").addEventListener("click", function(){ send("pause"); });
     $("rmNext").addEventListener("click", function(){ send("skip"); });
@@ -3193,8 +3164,6 @@ var qrcode = function() {
       if (pendingDel !== uid) { pendingDel = uid; toast("한 번 더 누르면 예약을 취소해요"); setTimeout(function(){ if (pendingDel === uid) pendingDel = null; }, 3000); return; }
       pendingDel = null; send("cancel", { uid: uid });
     });
-    // 유튜브 앱에서 돌아왔을 때 링크 칸에 바로 붙여넣기 쉽도록
-    document.addEventListener("visibilitychange", function(){ if (document.visibilityState === "visible" && !$("url").value) { try { $("url").focus({ preventScroll: true }); } catch (e) {} } });
   }
 })();
 </script>
