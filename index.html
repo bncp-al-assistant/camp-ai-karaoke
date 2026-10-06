@@ -137,6 +137,14 @@ form.add label{font-size:12px;color:var(--ink-dim)}
 .join .inp{font-family:var(--f-led);font-size:28px;letter-spacing:.3em;text-align:center}
 .ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .ctl .btn{padding:14px 4px;white-space:nowrap;font-size:15px}
+.ai-guide{border:1px solid rgba(255,138,31,.45);background:rgba(255,138,31,.07);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.ai-title{font-weight:700;color:var(--pink);font-size:15px}
+.ai-body{font-size:13.5px;line-height:1.55;color:var(--ink)}
+.ai-body b{color:var(--pink)}
+.ai-ex{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px}
+.ai-ex .step{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border-radius:999px;padding:5px 10px 5px 5px}
+.ai-ex i{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pink);color:#1a0612;font-weight:700;font-size:12px}
+.ai-ex .arrow{color:var(--ink-dim)}
 .hf{width:100%;justify-content:flex-start;gap:10px;padding:12px 14px;font-size:14px;border-style:dashed}
 .hf-dot{width:10px;height:10px;border-radius:50%;background:var(--ink-dim);flex:none}
 .hf.on{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(91,227,164,.08)}
@@ -271,8 +279,12 @@ details.link[open] summary{margin-bottom:8px}
         <button class="btn mic" type="button" id="micBtn" aria-label="말로 검색">🎤</button>
         <button class="btn primary" type="submit" aria-label="검색">🔍</button>
       </form>
-      <button class="btn hf" type="button" id="hfBtn" aria-pressed="false"><span class="hf-dot"></span><span id="hfLabel">핸즈프리 켜기 - 여기를 터치해 주세요</span></button>
-      <div class="ex" id="searchHint">🎤를 누르고 노래 제목을 말하거나, 글자로 입력하고 🔍를 누르세요. TJ노래방 반주 영상만 골라서 보여 드려요.</div>
+      <div class="ai-guide">
+        <div class="ai-title">🤖 AI 음성 예약</div>
+        <div class="ai-body"><b>🎤 마이크 아이콘</b>을 누른 뒤 노래 제목이나 가수를 말해 주세요. 리스트가 나오면 <b>해당 번호로 예약</b>을 요청하세요.</div>
+        <div class="ai-ex"><span class="step"><i>1</i>“홍길동” 검색</span><span class="arrow">→</span><span class="step"><i>2</i>“3번 노래 예약해 줘”</span></div>
+      </div>
+      <div class="ex" id="searchHint">글자로 입력하고 🔍를 눌러도 돼요. TJ노래방 반주 영상만 골라서 보여 드려요.</div>
       <ul class="results" id="results"></ul>
     </section>
 
@@ -2613,7 +2625,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v21";
+  var APP_VER = "v22";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -3164,21 +3176,18 @@ var qrcode = function() {
     var rec = null, listening = false, hands = false, wakeLockRm = null;
     var voice = null;   // { phase: "wake" | "title" | "number", until: 시각, pending: {n,pr} }
     var WAKE = /(노래\s*)?예약/;
-    function cleanTitle(t){ return t.replace(/\s*(찾아\s*줘|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|해\s*줘|주세요)\s*$/, "").trim(); }
+    function cleanTitle(t){ return t.replace(/\s*(노래\s*)?(찾아\s*줘|찾아\s*주세요|틀어\s*줘|예약\s*해?\s*줘|검색\s*해?\s*줘|검색\s*해?\s*주세요|검색|찾기|해\s*줘|주세요)\s*[.!]?\s*$/, "").trim() || t.trim(); }
     function buzz(){ try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {} }
     function voiceHint(){
       if (!voice) return;
       var h = voice.phase === "wake" ? "🎙️ 핸즈프리 대기 중… “예약”이라고 말하세요 (예: “예약, 좋은 날”)"
         : voice.phase === "title" ? "🎤 듣는 중… 노래 제목이나 가수를 말하세요"
-        : (lastResults.length ? "🎤 계속 듣는 중… 부를 곡의 번호를 말하세요 (예: “3번”, “2번 우선예약”)" : "🔍 찾는 중… 결과가 나오면 바로 번호를 말하세요");
+        : (lastResults.length ? "🎤 계속 듣는 중… 번호로 예약을 요청하세요 (예: “3번 노래 예약해 줘”)" : "🔍 찾는 중… 결과가 나오면 바로 번호를 말하세요");
       $("searchHint").textContent = h;
     }
     function setMicUi(){
       var active = !!voice && voice.phase !== "wake";
       $("micBtn").classList.toggle("listening", active);
-      $("hfBtn").classList.toggle("on", hands);
-      $("hfBtn").setAttribute("aria-pressed", hands ? "true" : "false");
-      $("hfLabel").textContent = hands ? "핸즈프리 켜짐 · “예약”이라고 말하세요 (누르면 끄기)" : "핸즈프리 켜기 - 여기를 터치해 주세요";
     }
     // 한 번의 예약 과정이 끝났을 때: 핸즈프리면 다시 대기, 아니면 마이크 끄기
     function finish(msg){
@@ -3261,7 +3270,7 @@ var qrcode = function() {
     document.addEventListener("visibilitychange", function(){
       if (document.visibilityState === "visible" && hands) { requestWakeRm(); if (!listening) { try { listen(); } catch (e) {} } }
     });
-    if (!SR) { $("micBtn").hidden = true; $("hfBtn").hidden = true; $("searchForm").style.gridTemplateColumns = "minmax(0,1fr) auto"; }
+    if (!SR) { $("micBtn").hidden = true; $("searchForm").style.gridTemplateColumns = "minmax(0,1fr) auto"; }
     else {
       $("micBtn").addEventListener("click", function(){
         if (voice && voice.phase !== "wake") { finish("음성 인식을 멈췄어요."); return; }
@@ -3269,14 +3278,6 @@ var qrcode = function() {
         voice = { phase: lastResults.length ? "number" : "title", until: Date.now() + (lastResults.length ? 20000 : 12000), pending: null };
         setMicUi(); voiceHint();
         if (!wasOn) { try { listen(); } catch (e) { stopAll("음성 인식을 시작하지 못했어요. 글자로 입력해 주세요."); } }
-      });
-      $("hfBtn").addEventListener("click", function(){
-        if (hands) { stopAll("핸즈프리를 껐어요."); return; }
-        hands = true; requestWakeRm();
-        var wasOn = !!voice;
-        voice = { phase: "wake", until: Infinity, pending: null };
-        setMicUi(); voiceHint();
-        if (!wasOn) { try { listen(); } catch (e) { stopAll("음성 인식을 시작하지 못했어요."); } }
       });
     }
     // 결과가 도착하면: 미리 말한 번호가 있으면 바로 예약, 없으면 번호를 기다린다고 안내
