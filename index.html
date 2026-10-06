@@ -2625,7 +2625,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v24";
+  var APP_VER = "v25";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2883,8 +2883,10 @@ var qrcode = function() {
       stageToast("🔍 검색: " + q);
       var timeout = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error("YouTube 검색 응답이 너무 늦어요. 노트북 인터넷을 확인하고 다시 검색해 주세요.")); }, 10000); });
       Promise.race([ytSearch(full, key), timeout]).then(function(items){
-        items = items.filter(function(it){ return isKY(it.title); }).slice(0, 10);   // 금영(KY) 표기가 있는 영상만
-        if (relay) relay.pub("reply", { t: "results", q: q, items: items, to: conn.from });
+        var total = items.length;
+        var ky = items.filter(function(it){ return isKY(it.title); }).slice(0, 10);   // 금영(KY) 표기가 있는 영상만
+        var others = ky.length ? [] : items.filter(function(it){ return /노래방|karaoke|반주|\bmr\b|inst|tj/i.test(it.title); }).slice(0, 10);
+        if (relay) relay.pub("reply", { t: "results", q: q, items: ky, others: others, total: total, to: conn.from });
       }).catch(function(err){ reply(conn, (err && err.message) || "검색에 실패했어요", "searchErr"); stageToast("⚠️ " + ((err && err.message) || "검색 실패")); });
     }
     $("keySave").addEventListener("click", function(){
@@ -3088,7 +3090,7 @@ var qrcode = function() {
       lastTv = Date.now();
       if (m.t === "toast") toast(m.text);
       else if (m.t === "addOk" || m.t === "addErr") toast(m.text);
-      else if (m.t === "results") { clearTimeout(searchT); showResults(m.q, m.items || []); }
+      else if (m.t === "results") { clearTimeout(searchT); showResults(m.q, m.items || [], { others: m.others || [], total: m.total }); }
       else if (m.t === "searchAck") { searchAcked = true; $("searchHint").textContent = "‘" + m.text + "’ 유튜브에서 찾는 중…"; }
       else if (m.t === "searchErr") { clearTimeout(searchT); if (voice && voice.phase !== "wake") finish(); $("searchHint").textContent = m.text; $("results").innerHTML = ""; }
     }
@@ -3131,9 +3133,19 @@ var qrcode = function() {
           : "TV가 검색 요청을 받지 못했어요. 노트북 화면이 켜져 있는지, 버전이 " + APP_VER + "인지 확인하고 다시 검색해 주세요.";
       }, 12000);
     }
-    var showResults = function(q, items){
+    var showResults = function(q, items, extra){
+      extra = extra || {};
       lastResults = items;
-      $("searchHint").textContent = items.length ? "‘" + q + "’ 검색 결과예요. 예약을 누르거나, 🎤를 누르고 “3번 예약”처럼 번호를 말하세요." : "‘" + q + "’ 금영(KY) 영상을 찾지 못했어요. 가수 이름을 함께 넣거나 다른 말로 찾아보세요.";
+      var others = extra.others || [];
+      if (items.length) $("searchHint").textContent = "‘" + q + "’ 검색 결과예요. 예약을 누르거나, 🎤를 누르고 “3번 노래 예약해 줘”처럼 번호를 말하세요.";
+      else if (others.length) $("searchHint").textContent = "‘" + q + "’ 금영(KY) 영상은 없어요. 대신 다른 노래방 영상이 " + others.length + "개 있어요.";
+      else if (extra.total === 0) $("searchHint").textContent = "‘" + q + "’ 유튜브에서 이 지역(이라크)에서 재생 가능한 영상을 찾지 못했어요. 가수 이름과 노래 제목을 함께 말해 보세요. (예: “아일릿 마그네틱”)";
+      else $("searchHint").textContent = "‘" + q + "’ 노래방 영상을 찾지 못했어요. 가수 이름과 노래 제목을 함께 말해 보세요.";
+      if (!items.length && others.length) {
+        $("results").innerHTML = '<li><button class="btn" type="button" id="showOthers" style="width:100%">다른 노래방 영상 보기 (' + others.length + '개)</button></li>';
+        $("showOthers").onclick = function(){ showResults(q, others, {}); $("searchHint").textContent = "‘" + q + "’ 다른 노래방 영상이에요 (금영 아님). 예약을 누르거나 번호를 말하세요."; };
+        return;
+      }
       $("results").innerHTML = items.map(function(it, i){
         return '<li class="res"><span class="rno">' + (i + 1) + '</span>' + (it.th ? '<img src="' + esc(it.th) + '" alt="" loading="lazy">' : '<span style="aspect-ratio:16/9;width:112px;background:#000;border-radius:8px"></span>') +
           '<div><div class="rt">' + esc(it.title) + '</div><div class="rc">' + esc(it.ch) + '</div>' +
@@ -3289,8 +3301,8 @@ var qrcode = function() {
     }
     // 결과가 도착하면: 미리 말한 번호가 있으면 바로 예약, 없으면 번호를 기다린다고 안내
     var _showResults = showResults;
-    showResults = function(q, items){
-      _showResults(q, items);
+    showResults = function(q, items, extra){
+      _showResults(q, items, extra);
       if (!voice || voice.phase === "wake") return;
       if (!items.length) { finish($("searchHint").textContent); return; }
       voice.until = Date.now() + 30000;
