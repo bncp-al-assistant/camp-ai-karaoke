@@ -95,9 +95,13 @@ a{color:var(--sky)}
 .screen .code{font-family:var(--f-led);color:var(--amber);font-size:clamp(20px,3vw,40px);letter-spacing:.2em}
 .screen .row2{display:flex;gap:4vmin;align-items:center;justify-content:center;flex-wrap:wrap}
 .screen .btn{font-size:clamp(16px,2vw,24px);padding:.7em 1.4em}
-.marquee{position:absolute;left:0;right:0;bottom:0;padding:10px 16px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:flex;gap:10px;align-items:baseline;pointer-events:none;font-size:clamp(13px,1.5vw,20px)}
-.marquee .tag{font-family:var(--f-led);color:var(--amber);flex:none}
-.marquee .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.qbox{position:absolute;left:1.6vmin;bottom:7vmin;z-index:5;width:min(46%,560px);background:rgba(13,11,31,.8);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:1.2vmin 1.6vmin;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:.6vmin}
+.screen:not([hidden]) ~ .qbox{display:none}   /* 카운트다운·안내 화면이 떠 있을 때는 숨기고 노래 중에만 표시 */
+.qbox .qh{display:flex;justify-content:space-between;align-items:baseline;font-size:clamp(11px,1.5vmin,17px);color:var(--ink-dim)}
+.qbox .qh b{color:var(--pink);font-weight:700;letter-spacing:.04em}
+.qbox .qi{display:flex;gap:1vmin;align-items:center;font-size:clamp(13px,2.1vmin,26px);min-width:0}
+.qbox .qi .qn{flex:none;display:inline-grid;place-items:center;width:1.7em;height:1.7em;border-radius:50%;background:var(--pink);color:#1a0612;font-family:var(--f-led);font-weight:700;font-size:.8em}
+.qbox .qi .qt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .corner{position:absolute;top:1.6vmin;right:1.6vmin;z-index:5;display:flex;gap:1.4vmin;align-items:center;background:rgba(13,11,31,.78);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:1vmin 1vmin 1vmin 1.6vmin;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .corner .lab{display:block;font-size:clamp(10px,1.3vmin,15px);color:var(--ink-dim);letter-spacing:.05em}
 .corner .code{display:block;font-family:var(--f-led);color:var(--amber);letter-spacing:.15em;font-size:clamp(14px,2.4vmin,28px);line-height:1.1}
@@ -200,7 +204,7 @@ details.link[open] summary{margin-bottom:8px}
       <div id="player"></div>
       <div class="screen" id="screen"></div>
       <div class="corner" id="corner" hidden><span><span class="lab">방 번호 · QR로 예약</span><span class="code" id="cornerCode"></span></span><span class="qr-mini" id="qrMini"></span></div>
-      <div class="marquee" id="marquee" hidden><span class="tag">다음 곡</span><span class="t" id="marqueeText"></span></div>
+      <div class="qbox" id="qbox" hidden></div>
       <div class="stage-toast" id="stageToast"></div>
     </div>
     <div class="controls">
@@ -2629,7 +2633,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v27";
+  var APP_VER = "v28";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2759,9 +2763,14 @@ var qrcode = function() {
       }).join("") : '<li class="empty">예약된 곡이 없어요. 핸드폰 리모컨에서 노래를 검색해서 예약하세요.</li>';
       $("queueCount").textContent = state.queue.length + "곡";
       $("nowText").textContent = current ? songTitle(current) : "없음";
-      var mq = $("marquee");
-      if (current && state.queue.length) { mq.hidden = false; $("marqueeText").textContent = songTitle(state.queue[0]); }
-      else mq.hidden = true;
+      // 노래 중 왼쪽 아래: 예약 현황 (다음 2곡까지)
+      var qb = $("qbox");
+      if (activated && current && state.queue.length) {
+        qb.hidden = false;
+        qb.innerHTML = '<div class="qh"><b>예약 현황</b><span>총 ' + state.queue.length + '곡</span></div>' +
+          state.queue.slice(0, 2).map(function(x, i){ return '<div class="qi"><span class="qn">' + (i + 1) + '</span><span class="qt">' + esc(songTitle(x)) + '</span></div>'; }).join("") +
+          (state.queue.length > 2 ? '<div class="qh"><span>외 ' + (state.queue.length - 2) + '곡</span></div>' : "");
+      } else qb.hidden = true;
       $("corner").hidden = !(activated && current);   // 노래(카운트다운 포함) 중에만 오른쪽 위에 표시
     }
     var stT;
@@ -3030,7 +3039,7 @@ var qrcode = function() {
     window.onYouTubeIframeAPIReady = function(){
       player = new YT.Player("player", {
         width: "100%", height: "100%",
-        playerVars: { rel: 0, playsinline: 1 },
+        playerVars: { rel: 0, playsinline: 1, fs: 0 },
         events: {
           onReady: function(){ playerReady = true; player.setVolume(state.vol); if (pendingPlay) { var s = pendingPlay; pendingPlay = null; loadSong(s); } },
           onStateChange: onState,
