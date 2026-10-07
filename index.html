@@ -95,14 +95,15 @@ a{color:var(--sky)}
 .screen .code{font-family:var(--f-led);color:var(--amber);font-size:clamp(20px,3vw,40px);letter-spacing:.2em}
 .screen .row2{display:flex;gap:4vmin;align-items:center;justify-content:center;flex-wrap:wrap}
 .screen .btn{font-size:clamp(16px,2vw,24px);padding:.7em 1.4em}
-.qbox{position:absolute;left:1.6vmin;bottom:7vmin;z-index:5;width:min(46%,560px);background:rgba(13,11,31,.8);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:1.2vmin 1.6vmin;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:.6vmin}
-.screen:not([hidden]) ~ .qbox{display:none}   /* 카운트다운·안내 화면이 떠 있을 때는 숨기고 노래 중에만 표시 */
+.rcol{position:absolute;top:1.6vmin;right:1.6vmin;z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:1vmin;pointer-events:none;max-width:44%}
+.qbox{width:min(40vw,440px);max-width:100%;background:rgba(13,11,31,.8);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:1.2vmin 1.6vmin;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:.6vmin}
+.screen:not([hidden]) ~ .rcol .qbox{display:none}   /* 카운트다운·안내 화면이 떠 있을 때는 숨기고 노래 중에만 표시 */
 .qbox .qh{display:flex;justify-content:space-between;align-items:baseline;font-size:clamp(11px,1.5vmin,17px);color:var(--ink-dim)}
 .qbox .qh b{color:var(--pink);font-weight:700;letter-spacing:.04em}
 .qbox .qi{display:flex;gap:1vmin;align-items:center;font-size:clamp(13px,2.1vmin,26px);min-width:0}
 .qbox .qi .qn{flex:none;display:inline-grid;place-items:center;width:1.7em;height:1.7em;border-radius:50%;background:var(--pink);color:#1a0612;font-family:var(--f-led);font-weight:700;font-size:.8em}
 .qbox .qi .qt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.corner{position:absolute;top:1.6vmin;right:1.6vmin;z-index:5;display:flex;gap:1.4vmin;align-items:center;background:rgba(13,11,31,.78);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:1vmin 1vmin 1vmin 1.6vmin;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.corner{display:flex;gap:1.4vmin;align-items:center;background:rgba(13,11,31,.78);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:1vmin 1vmin 1vmin 1.6vmin;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .corner .lab{display:block;font-size:clamp(10px,1.3vmin,15px);color:var(--ink-dim);letter-spacing:.05em}
 .corner .code{display:block;font-family:var(--f-led);color:var(--amber);letter-spacing:.15em;font-size:clamp(14px,2.4vmin,28px);line-height:1.1}
 .corner .qr-mini{background:#fff;padding:.6vmin;border-radius:8px;width:clamp(64px,11vmin,130px)}
@@ -203,8 +204,10 @@ details.link[open] summary{margin-bottom:8px}
     <div class="stage" id="stage">
       <div id="player"></div>
       <div class="screen" id="screen"></div>
-      <div class="corner" id="corner" hidden><span><span class="lab">방 번호 · QR로 예약</span><span class="code" id="cornerCode"></span></span><span class="qr-mini" id="qrMini"></span></div>
-      <div class="qbox" id="qbox" hidden></div>
+      <div class="rcol" id="rcol">
+        <div class="corner" id="corner" hidden><span><span class="lab">방 번호 · QR로 예약</span><span class="code" id="cornerCode"></span></span><span class="qr-mini" id="qrMini"></span></div>
+        <div class="qbox" id="qbox" hidden></div>
+      </div>
       <div class="stage-toast" id="stageToast"></div>
     </div>
     <div class="controls">
@@ -247,6 +250,8 @@ details.link[open] summary{margin-bottom:8px}
         <span class="hint" id="cacheInfo">기억된 검색어 0개</span>
         <button class="btn" type="button" id="cacheClear" style="padding:6px 10px;font-size:12px">기억 지우기</button>
       </div>
+      <button class="btn" type="button" id="keyLink" style="font-size:13px">🔗 키 포함 주소 복사 (즐겨찾기용)</button>
+      <div class="url" id="keyLinkBox" hidden></div>
     </div>
   </aside>
 </div>
@@ -2633,7 +2638,7 @@ var qrcode = function() {
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VER = "v28";
+  var APP_VER = "v29";
   var params = new URLSearchParams(location.search);
   var isRemote = params.has("room") || params.has("remote");
 
@@ -2852,6 +2857,15 @@ var qrcode = function() {
 
     /* ----- 노래 검색 (YouTube 검색 키는 이 노트북에만 저장) ----- */
     var KEYK = "uri-noraebang-ytkey";
+    // 주소 뒤 #k=키 로 열면 키를 자동으로 다시 저장 (즐겨찾기에 넣어 두면 키가 지워져도 바로 복구)
+    (function(){
+      var m = location.hash.match(/(?:^#|&)k=([A-Za-z0-9_\-]{20,})/);
+      if (m) {
+        lsSet(KEYK, m[1]);
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}   // TV 화면 주소창에서 키를 숨김
+      }
+    })();
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}   // 브라우저가 저장 내용을 함부로 지우지 않도록 요청
     function getKey(){ return (lsGet(KEYK) || "").trim(); }
     function decodeHtml(t){ var d = document.createElement("textarea"); d.innerHTML = t; return d.value; }
     function showKeyStatus(){
@@ -2976,11 +2990,23 @@ var qrcode = function() {
       $("keyMsg").textContent = "키를 확인하는 중…";
       ytSearch("노래방", k).then(function(){
         lsSet(KEYK, k); $("ytKey").value = ""; showKeyStatus(); broadcast();
+        setTimeout(function(){ $("keyMsg").textContent = "저장했어요. 키가 지워질 때를 대비해 아래 ‘키 포함 주소 복사’로 즐겨찾기를 만들어 두세요."; }, 50);
         $("keyMsg").textContent = "저장했어요. 이제 핸드폰에서 노래 제목으로 검색할 수 있어요.";
       }).catch(function(err){ $("keyMsg").textContent = err.message + " (저장하지 않았어요)"; });
     });
     showKeyStatus();
     showCacheInfo();
+    $("keyLink").addEventListener("click", function(){
+      var k = getKey();
+      if (!k) { $("keyMsg").textContent = "먼저 검색 키를 저장해 주세요."; return; }
+      var link = location.origin + location.pathname + "#k=" + k;
+      var box = $("keyLinkBox");
+      function shown(msg){ box.hidden = false; box.textContent = link; $("keyMsg").textContent = msg; }
+      try {
+        navigator.clipboard.writeText(link).then(function(){ shown("복사했어요. 이 주소를 노트북 즐겨찾기에 저장해 두고, 앞으로는 즐겨찾기로 여세요. 키가 지워져도 자동으로 다시 들어가요. (다른 사람에게는 보내지 마세요)"); },
+          function(){ shown("아래 주소를 직접 복사해서 즐겨찾기에 저장하세요. (다른 사람에게는 보내지 마세요)"); });
+      } catch (e) { shown("아래 주소를 직접 복사해서 즐겨찾기에 저장하세요. (다른 사람에게는 보내지 마세요)"); }
+    });
     var clearArm = false;
     $("cacheClear").addEventListener("click", function(){
       if (!clearArm) { clearArm = true; this.textContent = "한 번 더 누르면 지워요"; var b = this; setTimeout(function(){ clearArm = false; b.textContent = "기억 지우기"; }, 3000); return; }
